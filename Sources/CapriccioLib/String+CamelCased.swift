@@ -18,15 +18,23 @@ extension String {
         result = result.removeNotValidCharacters()
         return result.upperCamelCased
     }
-    
+
     func removeNotValidCharacters() -> String {
         return replacingOccurrences(of: "([^A-Za-z0-9 ]*)", with: "", options:.regularExpression)
     }
-    
+
+    func removeQuotes() -> String {
+        return replacingOccurrences(of: "([\"']*)", with: "", options:.regularExpression)
+    }
+
+    func changeDashes() -> String {
+        return replacingOccurrences(of: "([-])", with: "_", options:.regularExpression)
+    }
+
     func removeKeyWords() -> String {
         return replacingOccurrences(of: "\\s?<[\\w\\s]*>", with: "", options:.regularExpression)
     }
-    
+
     var upperCamelCased: String {
         let words = split(separator: " ")
         return words.map { word in
