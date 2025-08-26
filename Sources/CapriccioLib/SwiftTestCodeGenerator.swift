@@ -52,7 +52,7 @@ import XCTest
 final class {{ feature.name }}: {{ classType }} {
     {% for scenario in feature.scenarios %}{% if scenario.examples.count > 0 %}{% for example in scenario.examples %}
     {% if scenario.tags.count > 0 %}
-    //{% for tag in scenario.tags %} @{{ tag.name }}{% endfor %}{% endif %}
+    //{% for tag in scenario.tags %} @{{ tag.name }}{% endfor %}{% if example.values.__EXAMPLE_TAGS %} @{{ example.values.__EXAMPLE_TAGS }}{% endif %}{% endif %}
     func test_{{ scenario.tags[0].cleanName }}_{{ scenario.name }}With{{ example.valuesDescription }}() {
         {% for step in example.steps %}
         {{step.type}}("{{ step.description }}")
