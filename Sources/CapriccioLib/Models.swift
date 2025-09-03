@@ -9,10 +9,12 @@ import Foundation
 import Gherkin
 import Consumer
 
+private let __EXAMPLE_TAGS_KEY = "__EXAMPLE_TAGS"
+private var __lastExampleKeys: [String]? = nil
+
 /// A model that represents a single Gherkin feature file
 extension Gherkin.Feature {
     public init(string: String) throws {
-        try self.init(string)
         guard let result = try gherkin.match(string).transform(_transform) as? Gherkin.Feature else {
             throw GherkinError.standard
         }
@@ -98,20 +100,56 @@ func _transform(label: GherkinLabel, values: [Any]) -> Any? {
         description?.trimWhitespace()
         let steps: [Gherkin.Step] = filterd(values, is: Gherkin.Step.self)!
         let tags: [Gherkin.Tag]? = filterd(values, is: Gherkin.Tag.self)
-        let examples = values.last as! [Gherkin.Example]
-        return Gherkin.Scenario.outline(ScenarioOutline(name: name, description: description, steps: steps, examples: examples, tags: tags))
+        if let tags, tags.compactMap({$0.name}).contains("ZHOMEIOS-2579") {
+            print(tags)
+        }
+
+        let exampleGroups: [[Gherkin.Example]] = values.compactMap { $0 as? [Gherkin.Example] }
+        let allExamples = exampleGroups.flatMap { $0 }
+        __lastExampleKeys = nil
+
+        return Gherkin.Scenario.outline(ScenarioOutline(name: name, description: description, steps: steps, examples: allExamples, tags: tags))
     case .name:
         return values.first
     case .description:
         return values.first
     case .examples:
-        let keys = values[0] as! [String]
-        let exampleValues = values[1] as! [String]
-        let batches = exampleValues.chuncked(by: keys.count)
-        let examples: [[String: String]] = batches.map { batch -> [String: String] in
-            let keysAndValues = zip(keys, batch)
-            return Dictionary(uniqueKeysWithValues: keysAndValues)
+        let exampleTags: [Gherkin.Tag] = filterd(values, is: Gherkin.Tag.self) ?? []
+
+        let stringArrays: [[String]] = values.compactMap { $0 as? [String] }
+
+        let keysOpt: [String]?
+        let flatValues: [String]
+        if stringArrays.count == 2 {
+            keysOpt = stringArrays[0]
+            flatValues = stringArrays[1]
+        } else if stringArrays.count == 1 {
+            keysOpt = nil
+            flatValues = stringArrays[0]
+        } else {
+            return []
         }
+
+        let keys: [String]
+        if let k = keysOpt?.map({ $0.trimmedWhitespace() }), !k.isEmpty {
+            keys = k
+            __lastExampleKeys = k
+        } else if let inherited = __lastExampleKeys {
+            keys = inherited
+        } else {
+            return []
+        }
+
+        let batches = flatValues.chuncked(by: keys.count)
+
+        let tagsString = exampleTags.map { $0.name.trimmedWhitespace() }.joined(separator: " @")
+
+        let examples: [[String: String]] = batches.map { row in
+            var dict = Dictionary(uniqueKeysWithValues: zip(keys, row.map { $0.trimmedWhitespace() }))
+            dict[__EXAMPLE_TAGS_KEY] = tagsString
+            return dict
+        }
+
         return examples.map { Gherkin.Example(values: $0) }
     case .exampleKeys:
         return (values as! [String]).map { $0.trimmedWhitespace() }
@@ -205,21 +243,22 @@ func makeParser() -> GherkinConsumer {
         newLines,
     ]
 
-    let example: GherkinConsumer = [
+    let exampleBlock: GherkinConsumer = .label(.examples, [
+        .zeroOrMore(tag),
         whitespace,
         .discard("Examples:"),
         newLines,
         .label(.exampleKeys, tableRow),
         .label(.exampleValues, .oneOrMore(tableRow)),
         newLines,
-    ]
+    ])
 
     let scenarioOutlineName = makeLabelAndDescription(startText: "Scenario Outline:", ignoreText: stepKeywords)
     let scenarioOutline: GherkinConsumer = .label(.scenarioOutline, [
         .zeroOrMore(tag),
         scenarioOutlineName,
         .oneOrMore(step),
-        .label(.examples, example),
+        .oneOrMore(exampleBlock),
     ])
 
     let anyScenario: GherkinConsumer = scenario | scenarioOutline

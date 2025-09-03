@@ -105,7 +105,7 @@ public struct Example: Encodable, Equatable {
     init(gherkinExample: Gherkin.Example) {
         values = gherkinExample.values
 
-        let allValues = gherkinExample.values.sorted(by: { $0.0 < $1.0 }).compactMap { $0.value.validEntityName() }
+        let allValues = gherkinExample.values.sorted(by: { $0.0 < $1.0 }).compactMap { $0.value.validEntityName() }.dropFirst()
         valuesDescription = allValues.joined(separator: "And")
     }
 
